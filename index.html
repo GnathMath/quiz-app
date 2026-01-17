@@ -5,147 +5,138 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Offline Quiz App</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="manifest.json">
 </head>
 <body>
-    <!-- App Container -->
     <div id="app">
         <!-- Splash Screen -->
         <div id="splash-screen" class="screen active">
             <div class="splash-content">
                 <i class="fas fa-graduation-cap splash-icon"></i>
-                <h1>Offline Quiz</h1>
-                <p>Secure offline quiz application</p>
+                <h1>File-Based Quiz</h1>
+                <p>Create encrypted quiz files • Share offline • No internet needed</p>
                 <div class="mode-selector">
-                    <button onclick="showMode('teacher')" class="btn-teacher">
+                    <button onclick="showScreen('teacher-mode')" class="btn-teacher">
                         <i class="fas fa-chalkboard-teacher"></i> Teacher Mode
                     </button>
-                    <button onclick="showMode('student')" class="btn-student">
+                    <button onclick="showScreen('student-mode')" class="btn-student">
                         <i class="fas fa-user-graduate"></i> Student Mode
                     </button>
                 </div>
-                <div class="offline-status" id="offline-status">
-                    <i class="fas fa-wifi"></i> Online
+                <div class="features">
+                    <p><i class="fas fa-check-circle"></i> Create encrypted .quiz files</p>
+                    <p><i class="fas fa-check-circle"></i> Share via any method</p>
+                    <p><i class="fas fa-check-circle"></i> Works completely offline</p>
                 </div>
             </div>
         </div>
 
-        <!-- Teacher Mode Screens -->
+        <!-- Teacher Mode -->
         <div id="teacher-mode" class="screen">
             <div class="header">
                 <button onclick="showScreen('splash-screen')" class="back-btn">
                     <i class="fas fa-arrow-left"></i>
                 </button>
-                <h2>Teacher Mode</h2>
-            </div>
-            
-            <div class="teacher-options">
-                <button onclick="showScreen('create-quiz')" class="btn-primary">
-                    <i class="fas fa-plus-circle"></i> Create New Quiz
-                </button>
-                <button onclick="loadQuizDatabase()" class="btn-secondary">
-                    <i class="fas fa-database"></i> Open Quiz Database
-                </button>
-                <button onclick="showScreen('view-responses')" class="btn-secondary">
-                    <i class="fas fa-file-alt"></i> View Student Responses
-                </button>
-                <button onclick="exportQuiz()" class="btn-secondary">
-                    <i class="fas fa-file-export"></i> Export Quiz
-                </button>
-                <button onclick="importQuiz()" class="btn-secondary">
-                    <i class="fas fa-file-import"></i> Import Quiz
-                </button>
-            </div>
-        </div>
-
-        <!-- Create Quiz Screen -->
-        <div id="create-quiz" class="screen">
-            <div class="header">
-                <button onclick="showScreen('teacher-mode')" class="back-btn">
-                    <i class="fas fa-arrow-left"></i>
-                </button>
-                <h2>Create Quiz</h2>
+                <h2>Create Quiz File</h2>
             </div>
             
             <div class="form-container">
                 <div class="form-group">
-                    <label for="quiz-name">Quiz Name:</label>
-                    <input type="text" id="quiz-name" placeholder="Enter quiz name">
+                    <label for="quiz-name"><i class="fas fa-file-signature"></i> Quiz Name:</label>
+                    <input type="text" id="quiz-name" placeholder="e.g., Math Quiz Chapter 1">
                 </div>
                 
                 <div class="form-group">
-                    <label for="quiz-password">Database Password:</label>
-                    <input type="password" id="quiz-password" placeholder="Set encryption password">
+                    <label for="quiz-password"><i class="fas fa-lock"></i> Encryption Password:</label>
+                    <input type="password" id="quiz-password" placeholder="Students will need this to open">
+                    <small>Give this password to students to open the quiz</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="response-password"><i class="fas fa-key"></i> Response Password:</label>
+                    <input type="password" id="response-password" placeholder="You'll need this to view responses">
+                    <small>Keep this secret - used to decrypt student responses</small>
                 </div>
                 
                 <div class="question-type-selector">
                     <button onclick="addQuestion('mcq')" class="btn-primary">
-                        <i class="fas fa-list-ol"></i> Add Multiple Choice
+                        <i class="fas fa-list-ol"></i> Add MCQ
                     </button>
                     <button onclick="addQuestion('fill')" class="btn-primary">
                         <i class="fas fa-edit"></i> Add Fill in Blank
                     </button>
+                    <button onclick="addQuestion('tf')" class="btn-primary">
+                        <i class="fas fa-check-circle"></i> Add True/False
+                    </button>
                 </div>
                 
                 <div id="questions-container">
-                    <!-- Questions will be added here -->
+                    <!-- Questions added here -->
                 </div>
                 
-                <button onclick="saveQuiz()" class="btn-save">
-                    <i class="fas fa-save"></i> Save Quiz Database
-                </button>
+                <div class="action-buttons">
+                    <button onclick="previewQuiz()" class="btn-secondary">
+                        <i class="fas fa-eye"></i> Preview Quiz
+                    </button>
+                    <button onclick="saveQuizFile()" class="btn-save">
+                        <i class="fas fa-file-download"></i> Download .quiz File
+                    </button>
+                </div>
             </div>
         </div>
 
-        <!-- Student Mode Screens -->
+        <!-- Student Mode -->
         <div id="student-mode" class="screen">
             <div class="header">
                 <button onclick="showScreen('splash-screen')" class="back-btn">
                     <i class="fas fa-arrow-left"></i>
                 </button>
-                <h2>Student Mode</h2>
+                <h2>Open Quiz File</h2>
             </div>
             
-            <div class="student-options">
-                <button onclick="showScreen('take-quiz')" class="btn-primary">
-                    <i class="fas fa-play-circle"></i> Take Quiz
-                </button>
-                <button onclick="showScreen('view-progress')" class="btn-secondary">
-                    <i class="fas fa-chart-line"></i> View Progress
-                </button>
+            <div class="file-upload-area" onclick="document.getElementById('quiz-file-input').click()">
+                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                <h3>Upload Quiz File</h3>
+                <p>Drag & drop or click to select .quiz file</p>
+                <p class="file-name" id="selected-file">No file selected</p>
+                <input type="file" id="quiz-file-input" accept=".quiz" style="display: none;">
+            </div>
+            
+            <div class="form-group">
+                <label for="student-password"><i class="fas fa-lock"></i> Quiz Password:</label>
+                <input type="password" id="student-password" placeholder="Enter password from teacher">
+            </div>
+            
+            <button onclick="loadQuizFile()" class="btn-primary">
+                <i class="fas fa-unlock"></i> Open & Start Quiz
+            </button>
+            
+            <div class="instructions">
+                <h4><i class="fas fa-info-circle"></i> How to get quiz:</h4>
+                <p>1. Teacher will give you a .quiz file</p>
+                <p>2. Save it to your phone (Downloads folder)</p>
+                <p>3. Open this app and select the file</p>
+                <p>4. Enter the password provided by teacher</p>
             </div>
         </div>
 
-        <!-- Take Quiz Screen -->
-        <div id="take-quiz" class="screen">
-            <div class="header">
-                <button onclick="showScreen('student-mode')" class="back-btn">
-                    <i class="fas fa-arrow-left"></i>
-                </button>
-                <h2>Take Quiz</h2>
-            </div>
-            
-            <div class="quiz-access">
-                <div class="form-group">
-                    <label for="db-password">Quiz Database Password:</label>
-                    <input type="password" id="db-password" placeholder="Enter database password">
-                </div>
-                <button onclick="loadQuizForStudent()" class="btn-primary">
-                    <i class="fas fa-unlock"></i> Access Quiz
-                </button>
-            </div>
-            
-            <div id="quiz-container" style="display: none;">
-                <div class="quiz-header">
-                    <h3 id="quiz-title"></h3>
-                    <div class="quiz-progress">
-                        Question <span id="current-question">1</span> of <span id="total-questions">0</span>
+        <!-- Quiz Taking Screen -->
+        <div id="quiz-screen" class="screen">
+            <div class="quiz-header">
+                <div class="quiz-info">
+                    <h3 id="quiz-title">Quiz Title</h3>
+                    <div class="quiz-meta">
+                        <span><i class="far fa-clock"></i> <span id="timer">No time limit</span></span>
+                        <span><i class="fas fa-question-circle"></i> <span id="question-counter">1/10</span></span>
+                        <span><i class="fas fa-star"></i> Score: <span id="score-display">0</span> points</span>
                     </div>
                 </div>
-                
-                <div id="question-display">
-                    <!-- Questions will be displayed here -->
+            </div>
+            
+            <div class="quiz-body">
+                <div class="question-display" id="question-display">
+                    <!-- Question appears here -->
                 </div>
                 
                 <div class="quiz-navigation">
@@ -155,77 +146,125 @@
                     <button onclick="nextQuestion()" class="btn-primary" id="next-btn">
                         Next <i class="fas fa-arrow-right"></i>
                     </button>
-                    <button onclick="submitQuiz()" class="btn-save" id="submit-btn" style="display: none;">
-                        <i class="fas fa-paper-plane"></i> Submit Quiz
+                    <button onclick="finishQuiz()" class="btn-save" id="finish-btn" style="display: none;">
+                        <i class="fas fa-flag-checkered"></i> Finish Quiz
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Response Viewer -->
+        <!-- Results Screen -->
+        <div id="results-screen" class="screen">
+            <div class="header">
+                <button onclick="showScreen('student-mode')" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2>Quiz Results</h2>
+            </div>
+            
+            <div class="results-summary">
+                <div class="score-card">
+                    <h3>Your Score</h3>
+                    <div class="score-circle">
+                        <span id="final-score">0</span>%
+                    </div>
+                    <p><span id="correct-count">0</span> out of <span id="total-questions">0</span> correct</p>
+                </div>
+                
+                <div class="results-details" id="results-details">
+                    <!-- Question-by-question results -->
+                </div>
+                
+                <div class="response-section">
+                    <h3><i class="fas fa-file-export"></i> Send to Teacher</h3>
+                    <p>Download your encrypted response file and send it to your teacher</p>
+                    
+                    <div class="form-group">
+                        <label for="student-name">Your Name (optional):</label>
+                        <input type="text" id="student-name" placeholder="Enter your name">
+                    </div>
+                    
+                    <button onclick="saveResponseFile()" class="btn-save">
+                        <i class="fas fa-download"></i> Download .response File
+                    </button>
+                    
+                    <p class="small-text">Send this file to your teacher via email, WhatsApp, etc.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Teacher - View Responses -->
         <div id="view-responses" class="screen">
             <div class="header">
                 <button onclick="showScreen('teacher-mode')" class="back-btn">
                     <i class="fas fa-arrow-left"></i>
                 </button>
-                <h2>Student Responses</h2>
+                <h2>View Student Responses</h2>
             </div>
             
-            <div class="response-access">
-                <div class="form-group">
-                    <label for="response-password">Response Password:</label>
-                    <input type="password" id="response-password" placeholder="Enter response decryption password">
-                </div>
-                <button onclick="loadResponses()" class="btn-primary">
-                    <i class="fas fa-search"></i> Load Responses
-                </button>
+            <div class="response-upload-area" onclick="document.getElementById('response-file-input').click()">
+                <i class="fas fa-file-upload upload-icon"></i>
+                <h3>Upload Response File</h3>
+                <p>Select .response file from student</p>
+                <p class="file-name" id="selected-response-file">No file selected</p>
+                <input type="file" id="response-file-input" accept=".response" style="display: none;">
             </div>
             
-            <div id="responses-container">
-                <!-- Responses will be displayed here -->
+            <div class="form-group">
+                <label for="teacher-response-password"><i class="fas fa-key"></i> Response Password:</label>
+                <input type="password" id="teacher-response-password" placeholder="Enter your response password">
+            </div>
+            
+            <button onclick="openResponseFile()" class="btn-primary">
+                <i class="fas fa-unlock-alt"></i> Decrypt & View Responses
+            </button>
+            
+            <div id="responses-container" style="margin-top: 20px;">
+                <!-- Responses appear here -->
             </div>
         </div>
 
-        <!-- Notification Toast -->
+        <!-- Toast Notifications -->
         <div id="toast" class="toast"></div>
     </div>
 
-    <!-- File Input (hidden) -->
-    <input type="file" id="file-input" style="display: none;" accept=".json">
+    <!-- Hidden file inputs -->
+    <input type="file" id="hidden-file-input" style="display: none;">
     
     <script src="scripts/encryption.js"></script>
-    <script src="scripts/database.js"></script>
-    <script src="scripts/quiz.js"></script>
     <script src="scripts/app.js"></script>
     
     <script>
-        // Register service worker for PWA
+        // Make app installable as PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registered');
-                    })
-                    .catch(err => {
-                        console.log('ServiceWorker registration failed: ', err);
-                    });
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(() => console.log('App ready for offline use'))
+                    .catch(err => console.log('Service worker failed:', err));
             });
         }
-
-        // Check online/offline status
-        window.addEventListener('online', updateOnlineStatus);
-        window.addEventListener('offline', updateOnlineStatus);
-
-        function updateOnlineStatus() {
-            const status = document.getElementById('offline-status');
-            if (navigator.onLine) {
-                status.innerHTML = '<i class="fas fa-wifi"></i> Online';
-                status.className = 'offline-status online';
-            } else {
-                status.innerHTML = '<i class="fas fa-wifi-slash"></i> Offline';
-                status.className = 'offline-status offline';
+        
+        // Set up file input listeners
+        document.getElementById('quiz-file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('selected-file').textContent = file.name;
+                document.getElementById('selected-file').className = 'file-name selected';
             }
-        }
+        });
+        
+        document.getElementById('response-file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('selected-response-file').textContent = file.name;
+                document.getElementById('selected-response-file').className = 'file-name selected';
+            }
+        });
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Quiz App Loaded - File Based System');
+        });
     </script>
 </body>
 </html>

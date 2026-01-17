@@ -1,4 +1,5 @@
-class EncryptionManager {
+// Simple encryption for quiz files
+class FileEncryption {
     constructor() {
         this.algorithm = {
             name: 'AES-GCM',
@@ -6,12 +7,11 @@ class EncryptionManager {
         };
     }
 
-    // Generate encryption key from password
-    async generateKeyFromPassword(password, salt) {
+    // Generate key from password
+    async deriveKey(password, salt) {
         const encoder = new TextEncoder();
         const passwordBuffer = encoder.encode(password);
         
-        // Import password as key
         const baseKey = await crypto.subtle.importKey(
             'raw',
             passwordBuffer,
@@ -20,8 +20,7 @@ class EncryptionManager {
             ['deriveKey']
         );
         
-        // Derive key using PBKDF2
-        const key = await crypto.subtle.deriveKey(
+        return await crypto.subtle.deriveKey(
             {
                 name: 'PBKDF2',
                 salt: salt,
@@ -33,21 +32,19 @@ class EncryptionManager {
             false,
             ['encrypt', 'decrypt']
         );
-        
-        return key;
     }
 
-    // Encrypt data
-    async encryptData(data, password) {
+    // Encrypt data for file
+    async encrypt(data, password) {
         try {
             const salt = crypto.getRandomValues(new Uint8Array(16));
             const iv = crypto.getRandomValues(new Uint8Array(12));
             
-            const key = await this.generateKeyFromPassword(password, salt);
+            const key = await this.deriveKey(password, salt);
             const encoder = new TextEncoder();
             const dataBuffer = encoder.encode(JSON.stringify(data));
             
-            const encryptedContent = await crypto.subtle.encrypt(
+            const encrypted = await crypto.subtle.encrypt(
                 {
                     name: 'AES-GCM',
                     iv: iv
@@ -56,95 +53,81 @@ class EncryptionManager {
                 dataBuffer
             );
             
-            // Combine salt, iv, and encrypted data
-            const encryptedArray = new Uint8Array(
-                salt.byteLength + iv.byteLength + encryptedContent.byteLength
-            );
-            
+            // Combine salt + iv + encrypted data
+            const encryptedArray = new Uint8Array(salt.byteLength + iv.byteLength + encrypted.byteLength);
             encryptedArray.set(salt, 0);
             encryptedArray.set(iv, salt.byteLength);
-            encryptedArray.set(new Uint8Array(encryptedContent), salt.byteLength + iv.byteLength);
+            encryptedArray.set(new Uint8Array(encrypted), salt.byteLength + iv.byteLength);
             
-            // Convert to base64 for storage
-            const base64String = btoa(String.fromCharCode.apply(null, encryptedArray));
+            // Convert to base64 for file storage
+            return btoa(String.fromCharCode.apply(null, encryptedArray));
             
-            return {
-                encrypted: base64String,
-                metadata: {
-                    salt: Array.from(salt),
-                    iv: Array.from(iv),
-                    timestamp: new Date().toISOString()
-                }
-            };
         } catch (error) {
             console.error('Encryption error:', error);
-            throw error;
+            throw new Error('Encryption failed');
         }
     }
 
-    // Decrypt data
-    async decryptData(encryptedData, password) {
+    // Decrypt data from file
+    async decrypt(encryptedBase64, password) {
         try {
             // Convert from base64
-            const binaryString = atob(encryptedData);
+            const binaryString = atob(encryptedBase64);
             const encryptedArray = new Uint8Array(binaryString.length);
             
             for (let i = 0; i < binaryString.length; i++) {
                 encryptedArray[i] = binaryString.charCodeAt(i);
             }
             
-            // Extract salt, iv, and encrypted content
+            // Extract salt (16 bytes) and iv (12 bytes)
             const salt = encryptedArray.slice(0, 16);
             const iv = encryptedArray.slice(16, 28);
-            const encryptedContent = encryptedArray.slice(28);
+            const encryptedData = encryptedArray.slice(28);
             
-            const key = await this.generateKeyFromPassword(password, salt);
+            const key = await this.deriveKey(password, salt);
             
-            const decryptedContent = await crypto.subtle.decrypt(
+            const decrypted = await crypto.subtle.decrypt(
                 {
                     name: 'AES-GCM',
                     iv: iv
                 },
                 key,
-                encryptedContent
+                encryptedData
             );
             
             const decoder = new TextDecoder();
-            const decryptedString = decoder.decode(decryptedContent);
+            return JSON.parse(decoder.decode(decrypted));
             
-            return JSON.parse(decryptedString);
         } catch (error) {
             console.error('Decryption error:', error);
-            throw new Error('Invalid password or corrupted data');
+            throw new Error('Invalid password or corrupted file');
         }
     }
 
-    // Generate random password for response files
-    generateRandomPassword(length = 32) {
-        const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-        let password = '';
-        const randomValues = new Uint8Array(length);
+    // Create a download link for encrypted file
+    downloadFile(data, filename, type = 'application/octet-stream') {
+        const blob = new Blob([data], { type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
         
-        crypto.getRandomValues(randomValues);
-        
-        for (let i = 0; i < length; i++) {
-            password += charset[randomValues[i] % charset.length];
-        }
-        
-        return password;
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
-    // Hash password (for verification without decryption)
-    async hashPassword(password) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(password);
-        const hash = await crypto.subtle.digest('SHA-256', data);
-        
-        // Convert to hex string
-        const hashArray = Array.from(new Uint8Array(hash));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    // Read file as text
+    readFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject('Failed to read file');
+            reader.readAsText(file);
+        });
     }
 }
 
-// Export singleton instance
-const encryptionManager = new EncryptionManager();
+// Create global instance
+const fileEncryption = new FileEncryption();
