@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Quiz App</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- App Container -->
+    <div id="app">
+        <!-- Splash Screen -->
+        <div id="splash-screen" class="screen active">
+            <div class="splash-content">
+                <i class="fas fa-graduation-cap splash-icon"></i>
+                <h1>Offline Quiz</h1>
+                <p>Secure offline quiz application</p>
+                <div class="mode-selector">
+                    <button onclick="showMode('teacher')" class="btn-teacher">
+                        <i class="fas fa-chalkboard-teacher"></i> Teacher Mode
+                    </button>
+                    <button onclick="showMode('student')" class="btn-student">
+                        <i class="fas fa-user-graduate"></i> Student Mode
+                    </button>
+                </div>
+                <div class="offline-status" id="offline-status">
+                    <i class="fas fa-wifi"></i> Online
+                </div>
+            </div>
+        </div>
+
+        <!-- Teacher Mode Screens -->
+        <div id="teacher-mode" class="screen">
+            <div class="header">
+                <button onclick="showScreen('splash-screen')" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2>Teacher Mode</h2>
+            </div>
+            
+            <div class="teacher-options">
+                <button onclick="showScreen('create-quiz')" class="btn-primary">
+                    <i class="fas fa-plus-circle"></i> Create New Quiz
+                </button>
+                <button onclick="loadQuizDatabase()" class="btn-secondary">
+                    <i class="fas fa-database"></i> Open Quiz Database
+                </button>
+                <button onclick="showScreen('view-responses')" class="btn-secondary">
+                    <i class="fas fa-file-alt"></i> View Student Responses
+                </button>
+                <button onclick="exportQuiz()" class="btn-secondary">
+                    <i class="fas fa-file-export"></i> Export Quiz
+                </button>
+                <button onclick="importQuiz()" class="btn-secondary">
+                    <i class="fas fa-file-import"></i> Import Quiz
+                </button>
+            </div>
+        </div>
+
+        <!-- Create Quiz Screen -->
+        <div id="create-quiz" class="screen">
+            <div class="header">
+                <button onclick="showScreen('teacher-mode')" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2>Create Quiz</h2>
+            </div>
+            
+            <div class="form-container">
+                <div class="form-group">
+                    <label for="quiz-name">Quiz Name:</label>
+                    <input type="text" id="quiz-name" placeholder="Enter quiz name">
+                </div>
+                
+                <div class="form-group">
+                    <label for="quiz-password">Database Password:</label>
+                    <input type="password" id="quiz-password" placeholder="Set encryption password">
+                </div>
+                
+                <div class="question-type-selector">
+                    <button onclick="addQuestion('mcq')" class="btn-primary">
+                        <i class="fas fa-list-ol"></i> Add Multiple Choice
+                    </button>
+                    <button onclick="addQuestion('fill')" class="btn-primary">
+                        <i class="fas fa-edit"></i> Add Fill in Blank
+                    </button>
+                </div>
+                
+                <div id="questions-container">
+                    <!-- Questions will be added here -->
+                </div>
+                
+                <button onclick="saveQuiz()" class="btn-save">
+                    <i class="fas fa-save"></i> Save Quiz Database
+                </button>
+            </div>
+        </div>
+
+        <!-- Student Mode Screens -->
+        <div id="student-mode" class="screen">
+            <div class="header">
+                <button onclick="showScreen('splash-screen')" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2>Student Mode</h2>
+            </div>
+            
+            <div class="student-options">
+                <button onclick="showScreen('take-quiz')" class="btn-primary">
+                    <i class="fas fa-play-circle"></i> Take Quiz
+                </button>
+                <button onclick="showScreen('view-progress')" class="btn-secondary">
+                    <i class="fas fa-chart-line"></i> View Progress
+                </button>
+            </div>
+        </div>
+
+        <!-- Take Quiz Screen -->
+        <div id="take-quiz" class="screen">
+            <div class="header">
+                <button onclick="showScreen('student-mode')" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2>Take Quiz</h2>
+            </div>
+            
+            <div class="quiz-access">
+                <div class="form-group">
+                    <label for="db-password">Quiz Database Password:</label>
+                    <input type="password" id="db-password" placeholder="Enter database password">
+                </div>
+                <button onclick="loadQuizForStudent()" class="btn-primary">
+                    <i class="fas fa-unlock"></i> Access Quiz
+                </button>
+            </div>
+            
+            <div id="quiz-container" style="display: none;">
+                <div class="quiz-header">
+                    <h3 id="quiz-title"></h3>
+                    <div class="quiz-progress">
+                        Question <span id="current-question">1</span> of <span id="total-questions">0</span>
+                    </div>
+                </div>
+                
+                <div id="question-display">
+                    <!-- Questions will be displayed here -->
+                </div>
+                
+                <div class="quiz-navigation">
+                    <button onclick="prevQuestion()" class="btn-secondary" id="prev-btn">
+                        <i class="fas fa-arrow-left"></i> Previous
+                    </button>
+                    <button onclick="nextQuestion()" class="btn-primary" id="next-btn">
+                        Next <i class="fas fa-arrow-right"></i>
+                    </button>
+                    <button onclick="submitQuiz()" class="btn-save" id="submit-btn" style="display: none;">
+                        <i class="fas fa-paper-plane"></i> Submit Quiz
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Response Viewer -->
+        <div id="view-responses" class="screen">
+            <div class="header">
+                <button onclick="showScreen('teacher-mode')" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2>Student Responses</h2>
+            </div>
+            
+            <div class="response-access">
+                <div class="form-group">
+                    <label for="response-password">Response Password:</label>
+                    <input type="password" id="response-password" placeholder="Enter response decryption password">
+                </div>
+                <button onclick="loadResponses()" class="btn-primary">
+                    <i class="fas fa-search"></i> Load Responses
+                </button>
+            </div>
+            
+            <div id="responses-container">
+                <!-- Responses will be displayed here -->
+            </div>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <!-- File Input (hidden) -->
+    <input type="file" id="file-input" style="display: none;" accept=".json">
+    
+    <script src="scripts/encryption.js"></script>
+    <script src="scripts/database.js"></script>
+    <script src="scripts/quiz.js"></script>
+    <script src="scripts/app.js"></script>
+    
+    <script>
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registered');
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+
+        // Check online/offline status
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+
+        function updateOnlineStatus() {
+            const status = document.getElementById('offline-status');
+            if (navigator.onLine) {
+                status.innerHTML = '<i class="fas fa-wifi"></i> Online';
+                status.className = 'offline-status online';
+            } else {
+                status.innerHTML = '<i class="fas fa-wifi-slash"></i> Offline';
+                status.className = 'offline-status offline';
+            }
+        }
+    </script>
+</body>
+</html>

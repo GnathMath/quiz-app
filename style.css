@@ -1,0 +1,378 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+}
+
+#app {
+    max-width: 800px;
+    margin: 0 auto;
+    background: white;
+    min-height: 100vh;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+}
+
+.screen {
+    display: none;
+    padding: 20px;
+}
+
+.screen.active {
+    display: block;
+}
+
+/* Splash Screen */
+.splash-content {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.splash-icon {
+    font-size: 80px;
+    color: #667eea;
+    margin-bottom: 20px;
+}
+
+.splash-content h1 {
+    color: #333;
+    margin-bottom: 10px;
+    font-size: 2.5em;
+}
+
+.splash-content p {
+    color: #666;
+    margin-bottom: 40px;
+    font-size: 1.1em;
+}
+
+.mode-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    max-width: 300px;
+    margin: 0 auto;
+}
+
+.offline-status {
+    margin-top: 30px;
+    padding: 10px;
+    border-radius: 20px;
+    font-weight: bold;
+}
+
+.offline-status.online {
+    background: #d4edda;
+    color: #155724;
+}
+
+.offline-status.offline {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Header */
+.header {
+    display: flex;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 2px solid #eee;
+    margin-bottom: 20px;
+}
+
+.back-btn {
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    color: #667eea;
+    cursor: pointer;
+    margin-right: 15px;
+}
+
+/* Buttons */
+button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: bold;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+    background: #f8f9fa;
+    color: #495057;
+    border: 2px solid #dee2e6;
+}
+
+.btn-secondary:hover {
+    background: #e9ecef;
+}
+
+.btn-teacher {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    font-weight: bold;
+}
+
+.btn-student {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+    font-weight: bold;
+}
+
+.btn-save {
+    background: linear-gradient(135deg, #20bf55 0%, #01baef 100%);
+    color: white;
+    font-weight: bold;
+}
+
+/* Form Elements */
+.form-container, .quiz-access, .response-access {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #495057;
+}
+
+.form-group input, 
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+/* Question Container */
+.question-container {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #667eea;
+}
+
+.question-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.question-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* Quiz Display */
+.quiz-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.quiz-progress {
+    font-size: 0.9em;
+    opacity: 0.9;
+}
+
+.question-display {
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.mcq-options {
+    display: grid;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.option {
+    padding: 15px;
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.option:hover {
+    background: #e9ecef;
+}
+
+.option.selected {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.fill-input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 16px;
+    margin-top: 10px;
+}
+
+.quiz-navigation {
+    display: flex;
+    justify-content: space-between;
+    padding: 20px 0;
+    border-top: 2px solid #eee;
+}
+
+/* Toast Notification */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    background: #333;
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.toast.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.toast.success {
+    background: #20bf55;
+}
+
+.toast.error {
+    background: #f5576c;
+}
+
+.toast.info {
+    background: #4facfe;
+}
+
+/* Response Container */
+.response-item {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border-left: 4px solid #20bf55;
+}
+
+.response-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.response-answer {
+    color: #495057;
+    margin: 5px 0;
+}
+
+.response-correct {
+    color: #20bf55;
+    font-weight: bold;
+}
+
+.response-incorrect {
+    color: #f5576c;
+    font-weight: bold;
+}
+
+/* Teacher Options */
+.teacher-options, .student-options {
+    display: grid;
+    gap: 15px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .screen {
+        padding: 15px;
+    }
+    
+    .splash-icon {
+        font-size: 60px;
+    }
+    
+    .splash-content h1 {
+        font-size: 2em;
+    }
+    
+    .quiz-navigation {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .header h2 {
+        font-size: 1.3em;
+    }
+    
+    .form-group input,
+    .form-group textarea {
+        font-size: 14px;
+        padding: 10px;
+    }
+}
