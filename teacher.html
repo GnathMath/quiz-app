@@ -1179,7 +1179,7 @@
             
             // Prepare CSV data
             window.responsesData = responses;
-            generateCSVPreview(responses);
+            generateSimplifiedCSVPreview(responses);
         }
 
         // Calculate score if not provided
@@ -1286,6 +1286,59 @@
             
             showToast('Detailed CSV exported successfully!');
         }
+
+
+        // Add missing exportToExcel function:
+        function exportToExcel() {
+            if (!window.responsesData || window.responsesData.length === 0) {
+                showToast('No data to export');
+                return;
+            }
+            
+            const data = window.responsesData;
+            
+            // Create CSV (Excel can open CSV)
+            let csv = 'Registration Number,Quiz Name,Submitted Date,Total Answers,Tab Switches,App Switches,Copy Attempts\n';
+            
+            data.forEach(resp => {
+                const logs = resp.activityLogs || {};
+                const summary = logs.summary || {};
+                const regNumber = logs.regNumber || resp.regNumber || '';
+                const quizName = resp.quizName || '';
+                const submitted = resp.submittedAt ? new Date(resp.submittedAt).toLocaleDateString() : '';
+                
+                csv += `"${regNumber}","${quizName}","${submitted}",${summary.totalAnswers || 0},${summary.totalTabSwitches || 0},${summary.totalAppSwitches || 0},${summary.totalCopyAttempts || 0}\n`;
+            });
+            
+            // Add detailed answers section
+            csv += '\n\nDETAILED ANSWERS\n';
+            csv += 'Registration Number,Question Number,Question Text,Answer,Timestamp\n';
+            
+            data.forEach(resp => {
+                const logs = resp.activityLogs || {};
+                const regNumber = logs.regNumber || resp.regNumber || '';
+                
+                if (logs.answers && logs.answers.length > 0) {
+                    logs.answers.forEach(ans => {
+                        csv += `"${regNumber}",${ans.questionIndex + 1},"${ans.questionText}","${ans.answer}","${ans.timestamp}"\n`;
+                    });
+                }
+            });
+            
+            // Download as CSV (Excel compatible)
+            const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `quiz_results_excel_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast('Excel (CSV) file exported successfully!');
+        }
+
 
         // File reading helper
         function readFile(file) {
@@ -1473,35 +1526,6 @@
                 return strength;
             }
         };
-        
-        // Test the encryption
-        async function testEncryption() {
-            console.log('Testing secureCrypto...');
-            
-            try {
-                const testData = { message: 'Hello World', number: 42 };
-                const password = 'testPassword123';
-                
-                const encrypted = await secureCrypto.encrypt(testData, password);
-                console.log('✅ Encryption successful');
-                console.log('Encrypted (first 50 chars):', encrypted.substring(0, 50) + '...');
-                
-                const decrypted = await secureCrypto.decrypt(encrypted, password);
-                console.log('✅ Decryption successful');
-                console.log('Decrypted:', decrypted);
-                
-                if (JSON.stringify(testData) === JSON.stringify(decrypted)) {
-                    console.log('✅ Encryption test PASSED - Data integrity verified');
-                    return true;
-                } else {
-                    console.error('❌ Encryption test FAILED - Data mismatch');
-                    return false;
-                }
-            } catch (error) {
-                console.error('❌ Test error:', error);
-                return false;
-            }
-        }
         
         // Run test on page load
         window.addEventListener('DOMContentLoaded', () => {

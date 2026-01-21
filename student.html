@@ -560,9 +560,6 @@
 
     <!-- Toast -->
     <div id="toast" class="toast"></div>
-
-    <!-- Hidden file inputs -->
-    <input type="file" id="quiz-file" accept=".quiz" style="display: none;">
     
     <script>
         // ==================== COMPREHENSIVE LOGGING SYSTEM ====================
@@ -573,6 +570,7 @@
                     tabSwitches: [],       // Tab switch events
                     appSwitches: [],       // Window focus/blur events
                     copyAttempts: [],      // Copy attempt events
+                    events: [],            // Generic events
                     regNumber: null        // Registration number
                 };
                 this.startTime = null;
@@ -581,6 +579,7 @@
                 this.tabVisible = true;
                 this.tabSwitchCount = 0;
                 this.copyAttempts = 0;
+                this.internetChangeCount = 0;  // Added missing property
                 this.isMonitoring = false;
                 
                 // Bind methods
@@ -588,6 +587,8 @@
                 this.handleFocus = this.handleFocus.bind(this);
                 this.handleBlur = this.handleBlur.bind(this);
                 this.handleCopy = this.handleCopy.bind(this);
+                this.handleOnline = this.handleOnline.bind(this);
+                this.handleOffline = this.handleOffline.bind(this);
                 
                 this.startTime = Date.now();
             }
@@ -608,6 +609,10 @@
                 // Copy attempts
                 document.addEventListener('copy', this.handleCopy);
                 
+                // Online/offline tracking
+                window.addEventListener('online', this.handleOnline);
+                window.addEventListener('offline', this.handleOffline);
+                
                 console.log('Activity monitoring started');
             }
             
@@ -619,6 +624,8 @@
                 window.removeEventListener('focus', this.handleFocus);
                 window.removeEventListener('blur', this.handleBlur);
                 document.removeEventListener('copy', this.handleCopy);
+                window.removeEventListener('online', this.handleOnline);
+                window.removeEventListener('offline', this.handleOffline);
             }
             
             // Log answer with timestamp
@@ -627,6 +634,16 @@
                     questionIndex: questionIndex,
                     questionText: questionText.substring(0, 100),
                     answer: answer,
+                    timestamp: new Date().toISOString(),
+                    timeSinceStart: Date.now() - this.quizStartTime
+                });
+            }
+            
+            // Added missing logEvent method
+            logEvent(eventType, data) {
+                this.logs.events.push({
+                    event: eventType,
+                    data: data,
                     timestamp: new Date().toISOString(),
                     timeSinceStart: Date.now() - this.quizStartTime
                 });
@@ -705,6 +722,25 @@
                 this.showAntiCheatAlert('Copy attempt detected');
             }
             
+            // Handle online status changes
+            handleOnline() {
+                this.onlineStatus = true;
+                this.internetChangeCount++;
+                this.logEvent('internet_connected', {
+                    status: 'online',
+                    changeCount: this.internetChangeCount
+                });
+            }
+            
+            handleOffline() {
+                this.onlineStatus = false;
+                this.internetChangeCount++;
+                this.logEvent('internet_disconnected', {
+                    status: 'offline',
+                    changeCount: this.internetChangeCount
+                });
+            }
+            
             // Set registration number
             setRegNumber(regNumber) {
                 this.logs.regNumber = regNumber;
@@ -743,6 +779,7 @@
                     totalTabSwitches: this.tabSwitchCount,
                     totalAppSwitches: this.logs.appSwitches.length,
                     totalCopyAttempts: this.copyAttempts,
+                    totalInternetChanges: this.internetChangeCount,
                     regNumber: this.logs.regNumber,
                     quizDuration: Math.round((Date.now() - this.quizStartTime) / 1000)
                 };
@@ -757,13 +794,12 @@
                     tabSwitches: this.logs.tabSwitches,
                     appSwitches: this.logs.appSwitches,
                     copyAttempts: this.logs.copyAttempts,
+                    events: this.logs.events,
                     startTime: this.quizStartTime,
                     endTime: Date.now()
                 };
             }
         }
-
-
 
         // ==================== QUIZ APP LOGIC ====================
         let quizData = null;
@@ -843,10 +879,10 @@
                 const text = await readFile(file);
                 const data = JSON.parse(text);
                 
-                
                 if (data.type === 'QUIZ_FILE_V3' && data.encrypted) {
                     try {
-                        quizData = await secureCrypto.decrypt(data.encrypted, password);
+                        // Move secureCrypto declaration to top
+                        quizData = await window.secureCrypto.decrypt(data.encrypted, password);
                         
                         if (!quizData.questions || !quizData.name) {
                             throw new Error('Invalid quiz data');
@@ -1226,7 +1262,6 @@
         }
 
         // Save response with all logs
-        // Save response with all logs
         async function saveResponse() {
             const regNumber = document.getElementById('reg-number').value.trim();
             
@@ -1268,13 +1303,15 @@
                             totalTabSwitches: 0,
                             totalAppSwitches: 0,
                             totalCopyAttempts: 0,
+                            totalInternetChanges: 0,
                             regNumber: regNumber
                         },
                         regNumber: regNumber,
                         answers: [],
                         tabSwitches: [],
                         appSwitches: [],
-                        copyAttempts: []
+                        copyAttempts: [],
+                        events: []
                     }
                 };
                 
@@ -1283,7 +1320,7 @@
                 // ENCRYPT with teacher's response password
                 let encryptedResponse;
                 try {
-                    encryptedResponse = await secureCrypto.encrypt(responseData, responsePassword);
+                    encryptedResponse = await window.secureCrypto.encrypt(responseData, responsePassword);
                     console.log('✅ Response encrypted successfully');
                 } catch (encryptError) {
                     console.error('Encryption failed:', encryptError);
@@ -1328,40 +1365,6 @@
             }
         }
 
-        // Test the encryption
-        async function testEncryption() {
-            console.log('Testing secureCrypto...');
-            
-            try {
-                const testData = { message: 'Hello World', number: 42 };
-                const password = 'testPassword123';
-                
-                const encrypted = await secureCrypto.encrypt(testData, password);
-                console.log('✅ Encryption successful');
-                console.log('Encrypted (first 50 chars):', encrypted.substring(0, 50) + '...');
-                
-                const decrypted = await secureCrypto.decrypt(encrypted, password);
-                console.log('✅ Decryption successful');
-                console.log('Decrypted:', decrypted);
-                
-                if (JSON.stringify(testData) === JSON.stringify(decrypted)) {
-                    console.log('✅ Encryption test PASSED - Data integrity verified');
-                    return true;
-                } else {
-                    console.error('❌ Encryption test FAILED - Data mismatch');
-                    return false;
-                }
-            } catch (error) {
-                console.error('❌ Test error:', error);
-                return false;
-            }
-        }
-        
-        // Run test on page load
-        window.addEventListener('DOMContentLoaded', () => {
-            testEncryption();
-        });
-
         // Toast notification
         function showToast(message, duration = 3000) {
             const toast = document.getElementById('toast');
@@ -1399,22 +1402,10 @@
             }
         });
 
-        // Initialize
-        window.addEventListener('DOMContentLoaded', () => {
-            console.log('Secure Quiz Student App loaded');
-            
-            // Prevent access to console methods in production
-            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                console.log = function() {};
-                console.warn = function() {};
-                console.error = function() {};
-            }
-        });
-
         // ==================== SECURE CRYPTO LIBRARY ====================
         // This library provides AES-256-GCM encryption using Web Crypto API
         
-        const secureCrypto = {
+        window.secureCrypto = {
             // Encrypt data with password
             async encrypt(data, password) {
                 try {
@@ -1587,7 +1578,23 @@
                 return strength;
             }
         };
-        
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Secure Quiz Student App loaded');
+            
+            // Test encryption on load
+            testStudentEncryption();
+            
+            // Prevent access to console methods in production
+            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                console.log = function() {};
+                console.warn = function() {};
+                console.error = function() {};
+            }
+        });
+
+        // Test encryption
         async function testStudentEncryption() {
             console.log('Testing student encryption...');
             
@@ -1595,10 +1602,10 @@
                 const testData = { message: 'Test', number: 123 };
                 const password = 'test123';
                 
-                const encrypted = await secureCrypto.encrypt(testData, password);
+                const encrypted = await window.secureCrypto.encrypt(testData, password);
                 console.log('Student encryption successful');
                 
-                const decrypted = await secureCrypto.decrypt(encrypted, password);
+                const decrypted = await window.secureCrypto.decrypt(encrypted, password);
                 console.log('Student decryption successful:', decrypted);
                 
                 return JSON.stringify(testData) === JSON.stringify(decrypted);
@@ -1607,15 +1614,6 @@
                 return false;
             }
         }
-
-        // Call it on load
-        window.addEventListener('DOMContentLoaded', async () => {
-            const testPassed = await testStudentEncryption();
-            if (!testPassed) {
-                console.error('Encryption system not working in student.html');
-                showToast('Encryption system error. Please check browser compatibility.');
-            }
-        });
     </script>
 </body>
 </html>
