@@ -568,422 +568,146 @@
         // ==================== COMPREHENSIVE LOGGING SYSTEM ====================
         class ActivityLogger {
             constructor() {
-                this.logs = [];
+                this.logs = {
+                    answers: [],           // Question answers with timestamps
+                    tabSwitches: [],       // Tab switch events
+                    appSwitches: [],       // Window focus/blur events
+                    copyAttempts: [],      // Copy attempt events
+                    regNumber: null        // Registration number
+                };
                 this.startTime = null;
                 this.quizStartTime = null;
                 this.onlineStatus = true;
                 this.tabVisible = true;
                 this.tabSwitchCount = 0;
-                this.internetChangeCount = 0;
                 this.copyAttempts = 0;
-                this.rightClickAttempts = 0;
-                this.devToolsAttempts = 0;
-                this.pageCloseAttempts = 0;
-                this.keystrokeLogs = [];
-                this.mouseMoveLogs = [];
-                this.focusTime = 0;
-                this.blurTime = 0;
-                this.lastFocusTime = null;
-                this.pageIntegrity = this.calculatePageIntegrity();
-                this.integrityCheckInterval = null;
-                this.logBuffer = [];
-                this.maxLogs = 1000; // Prevent memory overflow
                 this.isMonitoring = false;
                 
                 // Bind methods
-                this.handleOnline = this.handleOnline.bind(this);
-                this.handleOffline = this.handleOffline.bind(this);
                 this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
                 this.handleFocus = this.handleFocus.bind(this);
                 this.handleBlur = this.handleBlur.bind(this);
-                this.handleBeforeUnload = this.handleBeforeUnload.bind(this);
-                this.handleContextMenu = this.handleContextMenu.bind(this);
                 this.handleCopy = this.handleCopy.bind(this);
-                this.handleKeyDown = this.handleKeyDown.bind(this);
-                this.handleMouseMove = this.handleMouseMove.bind(this);
-                this.detectDevTools = this.detectDevTools.bind(this);
                 
-                // Initialize
                 this.startTime = Date.now();
             }
             
-            // Start monitoring
             startMonitoring() {
                 if (this.isMonitoring) return;
                 this.isMonitoring = true;
                 this.quizStartTime = Date.now();
                 
-                // Network status
-                this.onlineStatus = navigator.onLine;
-                window.addEventListener('online', this.handleOnline);
-                window.addEventListener('offline', this.handleOffline);
-                
-                // Page visibility
+                // Page visibility (Tab switches)
                 this.tabVisible = !document.hidden;
                 document.addEventListener('visibilitychange', this.handleVisibilityChange);
                 
-                // Window focus
+                // Window focus/blur (App switches)
                 window.addEventListener('focus', this.handleFocus);
                 window.addEventListener('blur', this.handleBlur);
-                
-                // Page unload
-                window.addEventListener('beforeunload', this.handleBeforeUnload);
-                
-                // Context menu (right-click)
-                document.addEventListener('contextmenu', this.handleContextMenu);
                 
                 // Copy attempts
                 document.addEventListener('copy', this.handleCopy);
                 
-                // Keyboard shortcuts for dev tools
-                document.addEventListener('keydown', this.handleKeyDown);
-                
-                // Mouse movement (for activity detection)
-                document.addEventListener('mousemove', this.handleMouseMove, { passive: true });
-                
-                // Periodic integrity checks
-                this.integrityCheckInterval = setInterval(() => {
-                    this.checkPageIntegrity();
-                }, 5000);
-                
-                // Periodic dev tools detection
-                setInterval(this.detectDevTools, 1000);
-                
-                // Log start
-                this.logEvent('monitoring_started', {
-                    startTime: this.quizStartTime,
-                    userAgent: navigator.userAgent,
-                    platform: navigator.platform,
-                    language: navigator.language,
-                    online: this.onlineStatus,
-                    integrityHash: this.pageIntegrity
-                });
-                
                 console.log('Activity monitoring started');
             }
             
-            // Stop monitoring
             stopMonitoring() {
                 if (!this.isMonitoring) return;
                 this.isMonitoring = false;
                 
-                // Remove event listeners
-                window.removeEventListener('online', this.handleOnline);
-                window.removeEventListener('offline', this.handleOffline);
                 document.removeEventListener('visibilitychange', this.handleVisibilityChange);
                 window.removeEventListener('focus', this.handleFocus);
                 window.removeEventListener('blur', this.handleBlur);
-                window.removeEventListener('beforeunload', this.handleBeforeUnload);
-                document.removeEventListener('contextmenu', this.handleContextMenu);
                 document.removeEventListener('copy', this.handleCopy);
-                document.removeEventListener('keydown', this.handleKeyDown);
-                document.removeEventListener('mousemove', this.handleMouseMove);
-                
-                // Clear intervals
-                if (this.integrityCheckInterval) {
-                    clearInterval(this.integrityCheckInterval);
-                }
-                
-                // Calculate total focus time
-                if (this.lastFocusTime) {
-                    this.focusTime += Date.now() - this.lastFocusTime;
-                }
-                
-                // Log stop
-                this.logEvent('monitoring_stopped', {
-                    stopTime: Date.now(),
-                    totalFocusTime: Math.round(this.focusTime / 1000),
-                    totalBlurTime: Math.round(this.blurTime / 1000),
-                    tabSwitches: this.tabSwitchCount,
-                    internetChanges: this.internetChangeCount,
-                    copyAttempts: this.copyAttempts,
-                    rightClickAttempts: this.rightClickAttempts,
-                    devToolsAttempts: this.devToolsAttempts,
-                    pageCloseAttempts: this.pageCloseAttempts,
-                    finalIntegrityHash: this.calculatePageIntegrity()
+            }
+            
+            // Log answer with timestamp
+            logAnswer(questionIndex, answer, questionText) {
+                this.logs.answers.push({
+                    questionIndex: questionIndex,
+                    questionText: questionText.substring(0, 100),
+                    answer: answer,
+                    timestamp: new Date().toISOString(),
+                    timeSinceStart: Date.now() - this.quizStartTime
                 });
             }
             
-            // Event handlers
-            handleOnline() {
-                this.onlineStatus = true;
-                this.internetChangeCount++;
-                this.logEvent('went_online', {
-                    time: Date.now(),
-                    durationOffline: this.blurTime,
-                    changeCount: this.internetChangeCount
-                });
-                this.showWarning('Internet reconnected');
-            }
-            
-            handleOffline() {
-                this.onlineStatus = false;
-                this.internetChangeCount++;
-                this.logEvent('went_offline', {
-                    time: Date.now(),
-                    changeCount: this.internetChangeCount
-                });
-                this.showWarning('Internet disconnected');
-            }
-            
+            // Handle tab visibility (Tab switches)
             handleVisibilityChange() {
+                const timestamp = new Date().toISOString();
+                const timeSinceStart = Date.now() - this.quizStartTime;
+                
                 if (document.hidden) {
+                    // Tab switched away
                     this.tabVisible = false;
                     this.tabSwitchCount++;
-                    this.logEvent('tab_hidden', {
-                        time: Date.now(),
-                        switchCount: this.tabSwitchCount,
-                        activeDuration: this.focusTime
+                    this.logs.tabSwitches.push({
+                        event: 'tab_hidden',
+                        timestamp: timestamp,
+                        timeSinceStart: timeSinceStart,
+                        switchNumber: this.tabSwitchCount
                     });
                     this.showWarning('Tab switched away');
                 } else {
+                    // Tab came back
                     this.tabVisible = true;
-                    this.logEvent('tab_visible', {
-                        time: Date.now(),
-                        hiddenDuration: Date.now() - (this.logs[this.logs.length-1]?.timestamp || Date.now())
+                    this.logs.tabSwitches.push({
+                        event: 'tab_visible',
+                        timestamp: timestamp,
+                        timeSinceStart: timeSinceStart,
+                        switchNumber: this.tabSwitchCount
                     });
+                }
+                
+                // Update UI
+                if (document.getElementById('tab-switch-count')) {
+                    document.getElementById('tab-switch-count').textContent = this.tabSwitchCount;
                 }
             }
             
+            // Handle window focus (App switches)
             handleFocus() {
-                this.lastFocusTime = Date.now();
-                if (this.blurTime > 0) {
-                    this.focusTime += Date.now() - this.blurTime;
-                    this.blurTime = 0;
-                }
-                this.logEvent('window_focused', { time: Date.now() });
+                const timestamp = new Date().toISOString();
+                const timeSinceStart = Date.now() - this.quizStartTime;
+                
+                this.logs.appSwitches.push({
+                    event: 'window_focused',
+                    timestamp: timestamp,
+                    timeSinceStart: timeSinceStart
+                });
             }
             
             handleBlur() {
-                if (this.lastFocusTime) {
-                    this.blurTime = Date.now();
-                    this.focusTime += this.blurTime - this.lastFocusTime;
-                    this.lastFocusTime = null;
-                }
-                this.logEvent('window_blurred', { time: Date.now() });
-            }
-            
-            handleBeforeUnload(event) {
-                this.pageCloseAttempts++;
-                this.logEvent('page_close_attempt', {
-                    time: Date.now(),
-                    attemptCount: this.pageCloseAttempts
-                });
+                const timestamp = new Date().toISOString();
+                const timeSinceStart = Date.now() - this.quizStartTime;
                 
-                // Only show warning during quiz
-                if (window.quizStarted && !window.quizFinished) {
-                    event.preventDefault();
-                    event.returnValue = 'Are you sure you want to leave? Your progress will be lost.';
-                    return event.returnValue;
-                }
-            }
-            
-            handleContextMenu(event) {
-                this.rightClickAttempts++;
-                this.logEvent('right_click_attempt', {
-                    time: Date.now(),
-                    target: event.target.tagName,
-                    x: event.clientX,
-                    y: event.clientY,
-                    attemptCount: this.rightClickAttempts
+                this.logs.appSwitches.push({
+                    event: 'window_blurred',
+                    timestamp: timestamp,
+                    timeSinceStart: timeSinceStart
                 });
-                
-                // Show warning but allow right-click (for accessibility)
-                this.showAntiCheatAlert('Right-click detected');
-                return true; // Allow context menu
             }
             
+            // Handle copy attempts
             handleCopy(event) {
+                const timestamp = new Date().toISOString();
+                const timeSinceStart = Date.now() - this.quizStartTime;
+                const selection = window.getSelection().toString();
+                
                 this.copyAttempts++;
-                this.logEvent('copy_attempt', {
-                    time: Date.now(),
-                    selection: window.getSelection().toString().substring(0, 100),
-                    attemptCount: this.copyAttempts
+                this.logs.copyAttempts.push({
+                    timestamp: timestamp,
+                    timeSinceStart: timeSinceStart,
+                    attemptNumber: this.copyAttempts,
+                    selectedText: selection.substring(0, 100)
                 });
                 
-                // Allow copy but log it
                 this.showAntiCheatAlert('Copy attempt detected');
             }
             
-            handleKeyDown(event) {
-                // Log important keystrokes
-                const key = event.key;
-                const ctrl = event.ctrlKey || event.metaKey;
-                const shift = event.shiftKey;
-                
-                // Detect dev tools shortcuts
-                if ((ctrl && shift && (key === 'I' || key === 'i')) || // Ctrl+Shift+I
-                    (ctrl && shift && (key === 'J' || key === 'j')) || // Ctrl+Shift+J
-                    (ctrl && shift && (key === 'C' || key === 'c')) || // Ctrl+Shift+C
-                    (key === 'F12') || // F12
-                    (ctrl && key === 'U')) { // Ctrl+U (view source)
-                    
-                    this.devToolsAttempts++;
-                    this.logEvent('devtools_shortcut_attempt', {
-                        time: Date.now(),
-                        keyCombo: `${ctrl ? 'Ctrl+' : ''}${shift ? 'Shift+' : ''}${key}`,
-                        attemptCount: this.devToolsAttempts
-                    });
-                    
-                    this.showAntiCheatAlert('Developer tools shortcut detected');
-                }
-                
-                // Log other suspicious combos
-                if (ctrl && (key === 'S' || key === 's')) { // Ctrl+S (save page)
-                    this.logEvent('save_page_attempt', {
-                        time: Date.now(),
-                        keyCombo: `Ctrl+${key}`
-                    });
-                }
-                
-                // Store keystroke (limited to special keys)
-                if (key.length === 1 || [
-                    'Escape', 'Tab', 'Enter', 'Shift', 'Control', 'Alt',
-                    'CapsLock', 'Delete', 'Insert', 'Home', 'End',
-                    'PageUp', 'PageDown', 'ArrowUp', 'ArrowDown',
-                    'ArrowLeft', 'ArrowRight'
-                ].includes(key)) {
-                    
-                    if (this.keystrokeLogs.length < 100) { // Limit storage
-                        this.keystrokeLogs.push({
-                            time: Date.now(),
-                            key: key,
-                            ctrl: ctrl,
-                            shift: shift,
-                            alt: event.altKey,
-                            target: event.target.tagName
-                        });
-                    }
-                }
-            }
-            
-            handleMouseMove(event) {
-                // Sample mouse movements (1 per second max to avoid too much data)
-                const now = Date.now();
-                if (!this.lastMouseLog || now - this.lastMouseLog > 1000) {
-                    this.lastMouseLog = now;
-                    if (this.mouseMoveLogs.length < 50) { // Limit storage
-                        this.mouseMoveLogs.push({
-                            time: now,
-                            x: event.clientX,
-                            y: event.clientY,
-                            movementX: event.movementX,
-                            movementY: event.movementY
-                        });
-                    }
-                }
-            }
-            
-            // Detect dev tools by checking window dimensions or debugger
-            detectDevTools() {
-                const widthThreshold = window.outerWidth - window.innerWidth > 160;
-                const heightThreshold = window.outerHeight - window.innerHeight > 160;
-                
-                if (widthThreshold || heightThreshold) {
-                    // Possible dev tools open
-                    this.devToolsAttempts++;
-                    this.logEvent('devtools_suspected', {
-                        time: Date.now(),
-                        outerWidth: window.outerWidth,
-                        innerWidth: window.innerWidth,
-                        outerHeight: window.outerHeight,
-                        innerHeight: window.innerHeight,
-                        widthDiff: window.outerWidth - window.innerWidth,
-                        heightDiff: window.outerHeight - window.innerHeight,
-                        attemptCount: this.devToolsAttempts
-                    });
-                    
-                    // Try to detect debugger
-                    try {
-                        (function() {
-                            const startTime = Date.now();
-                            debugger; // This will pause if dev tools is open
-                            const endTime = Date.now();
-                            if (endTime - startTime > 100) {
-                                // Debugger was triggered
-                                this.logEvent('debugger_detected', {
-                                    time: Date.now(),
-                                    debugTime: endTime - startTime
-                                });
-                                this.showAntiCheatAlert('Debugger detected');
-                            }
-                        }).call(this);
-                    } catch (e) {
-                        // Ignore errors
-                    }
-                }
-            }
-            
-            // Calculate page integrity hash
-            calculatePageIntegrity() {
-                // Create a hash of important page elements
-                const elements = [
-                    document.documentElement.innerHTML.length,
-                    document.querySelectorAll('script').length,
-                    document.querySelectorAll('style').length,
-                    document.querySelectorAll('button').length,
-                    window.innerWidth,
-                    window.innerHeight
-                ].join('|');
-                
-                // Simple hash function
-                let hash = 0;
-                for (let i = 0; i < elements.length; i++) {
-                    const char = elements.charCodeAt(i);
-                    hash = ((hash << 5) - hash) + char;
-                    hash = hash & hash; // Convert to 32-bit integer
-                }
-                return hash.toString(36);
-            }
-            
-            // Check if page integrity has changed
-            checkPageIntegrity() {
-                const currentIntegrity = this.calculatePageIntegrity();
-                if (currentIntegrity !== this.pageIntegrity) {
-                    this.logEvent('page_integrity_changed', {
-                        time: Date.now(),
-                        previousHash: this.pageIntegrity,
-                        currentHash: currentIntegrity,
-                        difference: this.calculateDifference(this.pageIntegrity, currentIntegrity)
-                    });
-                    this.pageIntegrity = currentIntegrity;
-                    this.showAntiCheatAlert('Page integrity violation detected');
-                }
-            }
-            
-            calculateDifference(hash1, hash2) {
-                // Simple difference calculation
-                const maxLength = Math.max(hash1.length, hash2.length);
-                let differences = 0;
-                for (let i = 0; i < maxLength; i++) {
-                    if (hash1[i] !== hash2[i]) differences++;
-                }
-                return differences;
-            }
-            
-            // Log event with timestamp
-            logEvent(type, data = {}) {
-                const logEntry = {
-                    type: type,
-                    timestamp: Date.now(),
-                    timeSinceStart: this.quizStartTime ? Date.now() - this.quizStartTime : 0,
-                    data: data
-                };
-                
-                this.logs.push(logEntry);
-                
-                // Keep log size manageable
-                if (this.logs.length > this.maxLogs) {
-                    this.logs = this.logs.slice(-this.maxLogs);
-                }
-                
-                // Show log indicator briefly
-                this.showLogIndicator();
-                
-                // Log to console in development
-                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                    console.log('[Activity Log]', logEntry);
-                }
+            // Set registration number
+            setRegNumber(regNumber) {
+                this.logs.regNumber = regNumber;
             }
             
             // Show warning banner
@@ -1012,76 +736,34 @@
                 }
             }
             
-            // Show log indicator
-            showLogIndicator() {
-                const indicator = document.getElementById('log-indicator');
-                if (indicator) {
-                    indicator.style.display = 'block';
-                    clearTimeout(this.indicatorTimeout);
-                    this.indicatorTimeout = setTimeout(() => {
-                        indicator.style.display = 'none';
-                    }, 1000);
-                }
-            }
-            
-            // Get summary of logs
+            // Get summary
             getSummary() {
-                const now = Date.now();
-                const quizDuration = this.quizStartTime ? now - this.quizStartTime : 0;
-                
                 return {
-                    totalLogs: this.logs.length,
-                    quizDuration: Math.round(quizDuration / 1000),
-                    tabSwitches: this.tabSwitchCount,
-                    internetChanges: this.internetChangeCount,
-                    copyAttempts: this.copyAttempts,
-                    rightClickAttempts: this.rightClickAttempts,
-                    devToolsAttempts: this.devToolsAttempts,
-                    pageCloseAttempts: this.pageCloseAttempts,
-                    focusTime: Math.round(this.focusTime / 1000),
-                    blurTime: Math.round(this.blurTime / 1000),
-                    onlineStatus: this.onlineStatus,
-                    tabVisible: this.tabVisible,
-                    finalIntegrityHash: this.calculatePageIntegrity(),
-                    userAgent: navigator.userAgent,
-                    platform: navigator.platform
+                    totalAnswers: this.logs.answers.length,
+                    totalTabSwitches: this.tabSwitchCount,
+                    totalAppSwitches: this.logs.appSwitches.length,
+                    totalCopyAttempts: this.copyAttempts,
+                    regNumber: this.logs.regNumber,
+                    quizDuration: Math.round((Date.now() - this.quizStartTime) / 1000)
                 };
             }
             
-            // Get all logs (for response file)
+            // Get all logs for response file
             getAllLogs() {
                 return {
                     summary: this.getSummary(),
-                    detailedLogs: this.logs,
-                    keystrokeSamples: this.keystrokeLogs.slice(0, 50), // Limit size
-                    mouseMoveSamples: this.mouseMoveLogs.slice(0, 50), // Limit size
-                    networkInfo: {
-                        online: navigator.onLine,
-                        connection: navigator.connection ? {
-                            effectiveType: navigator.connection.effectiveType,
-                            downlink: navigator.connection.downlink,
-                            rtt: navigator.connection.rtt,
-                            saveData: navigator.connection.saveData
-                        } : null
-                    },
-                    screenInfo: {
-                        width: window.screen.width,
-                        height: window.screen.height,
-                        availWidth: window.screen.availWidth,
-                        availHeight: window.screen.availHeight,
-                        colorDepth: window.screen.colorDepth,
-                        pixelDepth: window.screen.pixelDepth
-                    },
-                    windowInfo: {
-                        innerWidth: window.innerWidth,
-                        innerHeight: window.innerHeight,
-                        outerWidth: window.outerWidth,
-                        outerHeight: window.outerHeight
-                    },
-                    timestamp: Date.now()
+                    regNumber: this.logs.regNumber,
+                    answers: this.logs.answers,
+                    tabSwitches: this.logs.tabSwitches,
+                    appSwitches: this.logs.appSwitches,
+                    copyAttempts: this.logs.copyAttempts,
+                    startTime: this.quizStartTime,
+                    endTime: Date.now()
                 };
             }
         }
+
+
 
         // ==================== QUIZ APP LOGIC ====================
         let quizData = null;
@@ -1384,14 +1066,14 @@
         function selectOption(value, originalIndex) {
             answers[originalIndex] = value;
             
-            // Log answer change
+            // Log answer with timestamp
             if (activityLogger) {
-                activityLogger.logEvent('answer_selected', {
-                    questionIndex: originalIndex,
-                    shuffledIndex: currentQuestionIndex,
-                    answer: value,
-                    timestamp: Date.now()
-                });
+                const question = quizData.questions[originalIndex];
+                activityLogger.logAnswer(
+                    originalIndex,
+                    value,
+                    question ? question.text : 'Unknown question'
+                );
             }
             
             showQuestion(currentQuestionIndex);
@@ -1405,11 +1087,12 @@
             clearTimeout(this.typingTimeout);
             this.typingTimeout = setTimeout(() => {
                 if (activityLogger) {
-                    activityLogger.logEvent('answer_typed', {
-                        questionIndex: originalIndex,
-                        answerLength: value.length,
-                        timestamp: Date.now()
-                    });
+                    const question = quizData.questions[originalIndex];
+                    activityLogger.logAnswer(
+                        originalIndex,
+                        value,
+                        question ? question.text : 'Unknown question'
+                    );
                 }
             }, 1000);
         }
@@ -1558,6 +1241,11 @@
             }
             
             try {
+                // Set registration number in logger
+                if (activityLogger) {
+                    activityLogger.setRegNumber(regNumber);
+                }
+                
                 // Get teacher's response password from quiz data
                 const responsePassword = quizData.responsePassword;
                 if (!responsePassword) {
@@ -1565,41 +1253,32 @@
                     return;
                 }
                 
-                // Create response data
+                // Create response data with simplified structure
                 const responseData = {
-                    version: '4.0',
+                    version: '5.0',
                     type: 'response',
                     quizName: quizData.name,
                     regNumber: regNumber,
-                    answers: answers,
-                    shuffledIndices: shuffledIndices,
-                    originalQuestions: quizData.questions.map(q => ({
-                        type: q.type,
-                        text: q.text.substring(0, 100)
-                    })),
                     submittedAt: new Date().toISOString(),
-                    timeTaken: quizData.timer ? (quizData.timer * 60 - timeLeft) : null,
-                    timeLeft: timeLeft,
-                    startTime: activityLogger?.quizStartTime || null,
-                    endTime: Date.now(),
                     
-                    // Activity logs
-                    activityLogs: activityLogger ? activityLogger.getAllLogs() : null,
-                    
-                    // System info
-                    systemInfo: {
-                        userAgent: navigator.userAgent,
-                        platform: navigator.platform,
-                        language: navigator.language
+                    // Activity logs - simplified structure
+                    activityLogs: activityLogger ? activityLogger.getAllLogs() : {
+                        summary: {
+                            totalAnswers: 0,
+                            totalTabSwitches: 0,
+                            totalAppSwitches: 0,
+                            totalCopyAttempts: 0,
+                            regNumber: regNumber
+                        },
+                        regNumber: regNumber,
+                        answers: [],
+                        tabSwitches: [],
+                        appSwitches: [],
+                        copyAttempts: []
                     }
                 };
                 
-                console.log('Response data created:', {
-                    quizName: responseData.quizName,
-                    regNumber: responseData.regNumber,
-                    answerCount: responseData.answers.filter(a => a).length,
-                    activityLogs: !!responseData.activityLogs
-                });
+                console.log('Response data created:', responseData);
                 
                 // ENCRYPT with teacher's response password
                 let encryptedResponse;
@@ -1608,15 +1287,14 @@
                     console.log('✅ Response encrypted successfully');
                 } catch (encryptError) {
                     console.error('Encryption failed:', encryptError);
-                    // Fallback: use simple base64 encoding
-                    encryptedResponse = btoa(JSON.stringify(responseData));
-                    console.log('⚠️ Used base64 fallback encryption');
+                    showToast('Encryption failed. Please try again.');
+                    return;
                 }
                 
                 // Create file
                 const fileContent = JSON.stringify({
-                    type: 'RESPONSE_FILE_V4',
-                    version: '4.0',
+                    type: 'RESPONSE_FILE_V5',
+                    version: '5.0',
                     encrypted: encryptedResponse,
                     quizName: quizData.name,
                     regNumber: regNumber,

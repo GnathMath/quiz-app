@@ -940,10 +940,9 @@
                             hasEncrypted: !!data.encrypted
                         });
                         
-                        // Accept V3 and V4 response files
-                        if ((data.type === 'RESPONSE_FILE_V3' || data.type === 'RESPONSE_FILE_V4') && data.encrypted) {
+                        // Accept V5 response files
+                        if (data.type === 'RESPONSE_FILE_V5' && data.encrypted) {
                             try {
-                                // Try decryption with the provided password
                                 const decrypted = await secureCrypto.decrypt(data.encrypted, password);
                                 console.log(`✅ Successfully decrypted ${file.name}`);
                                 responses.push({
@@ -954,28 +953,10 @@
                                 });
                             } catch (decryptError) {
                                 console.error(`❌ Decryption failed for ${file.name}:`, decryptError.message);
-                                
-                                // Try alternative approach if it's V4
-                                if (data.type === 'RESPONSE_FILE_V4' && password === 'backup_decryption') {
-                                    // Try base64 decoding as fallback
-                                    try {
-                                        const decoded = atob(data.encrypted);
-                                        const decrypted = JSON.parse(decoded);
-                                        responses.push({
-                                            ...decrypted,
-                                            fileName: file.name,
-                                            decryptionMethod: 'base64_fallback'
-                                        });
-                                        console.log(`✅ Used base64 fallback for ${file.name}`);
-                                    } catch (fallbackError) {
-                                        failedFiles.push(file.name + ' (decryption failed with both methods)');
-                                    }
-                                } else {
-                                    failedFiles.push(file.name + ' (decryption failed: ' + decryptError.message + ')');
-                                }
+                                failedFiles.push(file.name + ' (incorrect password)');
                             }
                         } else {
-                            failedFiles.push(file.name + ' (invalid format: type=' + (data.type || 'none') + ')');
+                            failedFiles.push(file.name + ' (invalid format)');
                         }
                     } catch (error) {
                         console.error(`Error processing ${file.name}:`, error);
@@ -993,12 +974,11 @@
                 }
                 
                 // Display successful responses
-                displayResponses(responses);
+                displayDetailedResponses(responses);
                 
                 // Show warning for failed files
                 if (failedFiles.length > 0) {
-                    showToast(`Successfully processed ${responses.length} file(s), failed ${failedFiles.length}`, 'warning');
-                    console.log('Failed files:', failedFiles);
+                    showToast(`Processed ${responses.length} file(s), failed ${failedFiles.length}`, 'warning');
                 } else {
                     showToast(`Successfully processed ${responses.length} file(s)`, 'success');
                 }
@@ -1007,6 +987,150 @@
                 console.error('Error in gradeResponses:', error);
                 showToast('Error: ' + error.message, 'error');
             }
+        }
+
+
+        // Detailed response view
+        function displayDetailedResponses(responses) {
+            const container = document.getElementById('responses-container');
+            const csvSection = document.getElementById('csv-section');
+            
+            let html = `<h3>Responses (${responses.length} students)</h3>`;
+            
+            responses.forEach((resp, index) => {
+                const logs = resp.activityLogs || {};
+                const summary = logs.summary || {};
+                const regNumber = logs.regNumber || resp.regNumber || 'Anonymous';
+                const quizName = resp.quizName || 'Unknown Quiz';
+                
+                html += `
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid #667eea;">
+                        <h3 style="margin-bottom: 15px;">Student: ${regNumber}</h3>
+                        <div style="margin-bottom: 15px;">
+                            <strong>Quiz:</strong> ${quizName}<br>
+                            <strong>Submitted:</strong> ${resp.submittedAt ? new Date(resp.submittedAt).toLocaleString() : 'Unknown'}
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 20px 0;">
+                            <div style="background: white; padding: 10px; border-radius: 5px; text-align: center;">
+                                <div style="font-size: 24px; font-weight: bold; color: #667eea;">${summary.totalAnswers || 0}</div>
+                                <div style="font-size: 12px; color: #666;">Answers</div>
+                            </div>
+                            <div style="background: white; padding: 10px; border-radius: 5px; text-align: center;">
+                                <div style="font-size: 24px; font-weight: bold; color: #ff6b6b;">${summary.totalTabSwitches || 0}</div>
+                                <div style="font-size: 12px; color: #666;">Tab Switches</div>
+                            </div>
+                            <div style="background: white; padding: 10px; border-radius: 5px; text-align: center;">
+                                <div style="font-size: 24px; font-weight: bold; color: #ffa502;">${summary.totalAppSwitches || 0}</div>
+                                <div style="font-size: 12px; color: #666;">App Switches</div>
+                            </div>
+                            <div style="background: white; padding: 10px; border-radius: 5px; text-align: center;">
+                                <div style="font-size: 24px; font-weight: bold; color: #ff4757;">${summary.totalCopyAttempts || 0}</div>
+                                <div style="font-size: 12px; color: #666;">Copy Attempts</div>
+                            </div>
+                        </div>
+                        
+                        <button onclick="showDetailedLogs(${index})" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">
+                            📊 View Detailed Activity Logs
+                        </button>
+                        
+                        <div id="detailed-logs-${index}" style="display: none; margin-top: 20px;"></div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            csvSection.style.display = 'block';
+            
+            // Store responses for detailed view and CSV export
+            window.responsesData = responses;
+            generateSimplifiedCSVPreview(responses);
+        }
+
+        // ==================== NEW showDetailedLogs FUNCTION ====================
+        function showDetailedLogs(index) {
+            const response = window.responsesData[index];
+            const logs = response.activityLogs || {};
+            const container = document.getElementById(`detailed-logs-${index}`);
+            
+            if (container.style.display === 'block') {
+                container.style.display = 'none';
+                return;
+            }
+            
+            let html = '<div style="background: white; padding: 15px; border-radius: 5px;">';
+            
+            // Answers section
+            html += '<h4>📝 Answers with Timestamps</h4>';
+            html += '<table style="width: 100%; margin-bottom: 20px;"><tr><th>Q#</th><th>Question</th><th>Answer</th><th>Timestamp</th></tr>';
+            if (logs.answers && logs.answers.length > 0) {
+                logs.answers.forEach(ans => {
+                    html += `<tr>
+                        <td>${ans.questionIndex + 1}</td>
+                        <td>${ans.questionText}</td>
+                        <td><strong>${ans.answer}</strong></td>
+                        <td>${new Date(ans.timestamp).toLocaleTimeString()}</td>
+                    </tr>`;
+                });
+            } else {
+                html += '<tr><td colspan="4">No answers recorded</td></tr>';
+            }
+            html += '</table>';
+            
+            // Tab switches section
+            html += '<h4>🔄 Tab Switch Events</h4>';
+            html += '<table style="width: 100%; margin-bottom: 20px;"><tr><th>Event</th><th>Timestamp</th><th>Time Since Start</th></tr>';
+            if (logs.tabSwitches && logs.tabSwitches.length > 0) {
+                logs.tabSwitches.forEach(ts => {
+                    const eventText = ts.event === 'tab_hidden' ? '❌ Tab Hidden' : '✅ Tab Visible';
+                    html += `<tr>
+                        <td>${eventText}</td>
+                        <td>${new Date(ts.timestamp).toLocaleTimeString()}</td>
+                        <td>${(ts.timeSinceStart / 1000).toFixed(1)}s</td>
+                    </tr>`;
+                });
+            } else {
+                html += '<tr><td colspan="3">No tab switches recorded</td></tr>';
+            }
+            html += '</table>';
+            
+            // App switches section
+            html += '<h4>💻 App Switch Events (Focus/Blur)</h4>';
+            html += '<table style="width: 100%; margin-bottom: 20px;"><tr><th>Event</th><th>Timestamp</th><th>Time Since Start</th></tr>';
+            if (logs.appSwitches && logs.appSwitches.length > 0) {
+                logs.appSwitches.forEach(as => {
+                    const eventText = as.event === 'window_blurred' ? '❌ Window Blurred' : '✅ Window Focused';
+                    html += `<tr>
+                        <td>${eventText}</td>
+                        <td>${new Date(as.timestamp).toLocaleTimeString()}</td>
+                        <td>${(as.timeSinceStart / 1000).toFixed(1)}s</td>
+                    </tr>`;
+                });
+            } else {
+                html += '<tr><td colspan="3">No app switches recorded</td></tr>';
+            }
+            html += '</table>';
+            
+            // Copy attempts section
+            html += '<h4>📋 Copy Attempts</h4>';
+            html += '<table style="width: 100%;"><tr><th>Attempt #</th><th>Selected Text</th><th>Timestamp</th></tr>';
+            if (logs.copyAttempts && logs.copyAttempts.length > 0) {
+                logs.copyAttempts.forEach(ca => {
+                    html += `<tr>
+                        <td>${ca.attemptNumber}</td>
+                        <td>${ca.selectedText || '(empty)'}</td>
+                        <td>${new Date(ca.timestamp).toLocaleTimeString()}</td>
+                    </tr>`;
+                });
+            } else {
+                html += '<tr><td colspan="3">No copy attempts recorded</td></tr>';
+            }
+            html += '</table>';
+            
+            html += '</div>';
+            
+            container.innerHTML = html;
+            container.style.display = 'block';
         }
 
         // File integrity check
@@ -1086,54 +1210,31 @@
         }
 
         // Generate CSV preview
-        function generateCSVPreview(responses) {
+        function generateSimplifiedCSVPreview(responses) {
             if (responses.length === 0) return;
             
-            // Get the first response to determine format
-            const firstResp = responses[0];
+            let tableHTML = '<table><tr><th>Reg Number</th><th>Total Answers</th><th>Tab Switches</th><th>App Switches</th><th>Copy Attempts</th><th>Submitted</th></tr>';
             
-            let tableHTML = '<table><tr><th>Reg Number</th>';
-            
-            // Determine number of questions
-            let questionCount = 0;
-            if (firstResp.questions && firstResp.questions.length) {
-                questionCount = firstResp.questions.length;
-            } else if (firstResp.shuffledQuestions && firstResp.shuffledQuestions.length) {
-                questionCount = firstResp.shuffledQuestions.length;
-            }
-            
-            // Question headers
-            for (let i = 0; i < questionCount; i++) {
-                tableHTML += `<th>Q${i + 1}</th>`;
-            }
-            
-            tableHTML += '<th>Score</th><th>Submitted</th><th>Tab Switches</th><th>Copy Attempts</th></tr>';
-            
-            // Data rows
             responses.forEach(resp => {
-                const regNumber = resp.regNumber || '';
-                const score = resp.score || calculateScore(resp) || '';
-                const submitted = resp.submittedAt ? new Date(resp.submittedAt).toLocaleDateString() : '';
-                const tabSwitches = resp.activityLogs?.summary?.tabSwitches || 0;
-                const copyAttempts = resp.activityLogs?.summary?.copyAttempts || 0;
+                const logs = resp.activityLogs || {};
+                const summary = logs.summary || {};
+                const regNumber = logs.regNumber || resp.regNumber || '';
+                const submitted = resp.submittedAt ? new Date(resp.submittedAt).toLocaleString() : '';
                 
-                tableHTML += `<tr><td>${regNumber}</td>`;
-                
-                // Answers
-                for (let i = 0; i < questionCount; i++) {
-                    const answer = resp.answers && resp.answers[i] ? resp.answers[i] : '';
-                    tableHTML += `<td>${answer}</td>`;
-                }
-                
-                tableHTML += `<td>${score}</td>`;
-                tableHTML += `<td>${submitted}</td>`;
-                tableHTML += `<td>${tabSwitches}</td>`;
-                tableHTML += `<td>${copyAttempts}</td></tr>`;
+                tableHTML += `<tr>
+                    <td>${regNumber}</td>
+                    <td>${summary.totalAnswers || 0}</td>
+                    <td>${summary.totalTabSwitches || 0}</td>
+                    <td>${summary.totalAppSwitches || 0}</td>
+                    <td>${summary.totalCopyAttempts || 0}</td>
+                    <td>${submitted}</td>
+                </tr>`;
             });
             
             tableHTML += '</table>';
             document.getElementById('csv-preview').innerHTML = tableHTML;
         }
+
 
         // Export to CSV
         function exportToCSV() {
@@ -1143,40 +1244,33 @@
             }
             
             const data = window.responsesData;
-            const firstResp = data[0];
             
-            // Determine number of questions
-            let questionCount = 0;
-            if (firstResp.questions && firstResp.questions.length) {
-                questionCount = firstResp.questions.length;
-            } else if (firstResp.shuffledQuestions && firstResp.shuffledQuestions.length) {
-                questionCount = firstResp.shuffledQuestions.length;
-            }
+            // Create detailed CSV with all logs
+            let csv = 'Registration Number,Quiz Name,Submitted Date,Total Answers,Tab Switches,App Switches,Copy Attempts\n';
             
-            // Create CSV header
-            let csv = 'Registration Number,';
-            for (let i = 0; i < questionCount; i++) {
-                csv += `Q${i + 1},`;
-            }
-            csv += 'Score,Submitted Date,Tab Switches,Copy Attempts\n';
-            
-            // Add data rows
             data.forEach(resp => {
-                const regNumber = resp.regNumber || '';
-                const score = resp.score || calculateScore(resp) || '';
+                const logs = resp.activityLogs || {};
+                const summary = logs.summary || {};
+                const regNumber = logs.regNumber || resp.regNumber || '';
+                const quizName = resp.quizName || '';
                 const submitted = resp.submittedAt ? new Date(resp.submittedAt).toLocaleDateString() : '';
-                const tabSwitches = resp.activityLogs?.summary?.tabSwitches || 0;
-                const copyAttempts = resp.activityLogs?.summary?.copyAttempts || 0;
                 
-                csv += `"${regNumber}",`;
+                csv += `"${regNumber}","${quizName}","${submitted}",${summary.totalAnswers || 0},${summary.totalTabSwitches || 0},${summary.totalAppSwitches || 0},${summary.totalCopyAttempts || 0}\n`;
+            });
+            
+            // Add detailed answers section
+            csv += '\n\nDETAILED ANSWERS\n';
+            csv += 'Registration Number,Question Number,Question Text,Answer,Timestamp\n';
+            
+            data.forEach(resp => {
+                const logs = resp.activityLogs || {};
+                const regNumber = logs.regNumber || resp.regNumber || '';
                 
-                // Answers
-                for (let i = 0; i < questionCount; i++) {
-                    const answer = resp.answers && resp.answers[i] ? resp.answers[i] : '';
-                    csv += `"${answer}",`;
+                if (logs.answers && logs.answers.length > 0) {
+                    logs.answers.forEach(ans => {
+                        csv += `"${regNumber}",${ans.questionIndex + 1},"${ans.questionText}","${ans.answer}","${ans.timestamp}"\n`;
+                    });
                 }
-                
-                csv += `"${score}","${submitted}","${tabSwitches}","${copyAttempts}"\n`;
             });
             
             // Download
@@ -1184,19 +1278,13 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `quiz_results_${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `quiz_results_detailed_${new Date().toISOString().split('T')[0]}.csv`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             
-            showToast('CSV exported successfully!');
-        }
-
-        // Export to Excel
-        function exportToExcel() {
-            // For simplicity, we'll create an HTML table that Excel can open
-            exportToCSV(); // CSV works in Excel too
+            showToast('Detailed CSV exported successfully!');
         }
 
         // File reading helper
