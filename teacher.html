@@ -220,7 +220,7 @@
     </div>
 
     <!-- Hidden file inputs -->
-    <input type="file" id="file-input" style="display: none;" accept=".quiz,.response,.json">
+    <input type="file" id="file-input" style="display: none;" accept=".quiz,.response,.json" multiple>
     
     <!-- Toast -->
     <div id="toast" class="toast"></div>
@@ -241,6 +241,47 @@
         let drafts = [];
         let currentTab = 'create';
 
+
+        // Debug function to see what's in the response file
+        async function debugResponseFile(file) {
+            try {
+                const text = await readFile(file);
+                const data = JSON.parse(text);
+                console.log('=== FILE DEBUG ===');
+                console.log('Filename:', file.name);
+                console.log('File type:', data.type);
+                console.log('Version:', data.version || 'unknown');
+                console.log('Has encrypted:', !!data.encrypted);
+                console.log('Encrypted length:', data.encrypted ? data.encrypted.length : 0);
+                console.log('Encrypted first 50 chars:', data.encrypted ? data.encrypted.substring(0, 50) + '...' : 'none');
+                console.log('Quiz name:', data.quizName || 'unknown');
+                console.log('Registration:', data.regNumber || 'unknown');
+                return data;
+            } catch (error) {
+                console.error('Debug error:', error);
+                return null;
+            }
+        }
+
+        // Test it by calling from console after selecting a file
+        // const file = document.getElementById('file-input').files[0];
+        // debugResponseFile(file);
+        // Debug helper to see file contents
+        async function debugFile(file) {
+            try {
+                const text = await readFile(file);
+                const data = JSON.parse(text);
+                console.log('File:', file.name);
+                console.log('Type:', data.type);
+                console.log('Has encrypted:', !!data.encrypted);
+                console.log('Encrypted length:', data.encrypted ? data.encrypted.length : 0);
+                console.log('Full data:', data);
+                return data;
+            } catch (error) {
+                console.error('Debug error:', error);
+                return null;
+            }
+        }
         // Load saved data from localStorage
         function loadData() {
             try {
@@ -823,7 +864,52 @@
             }
         }
 
+        // Test encryption with a sample response
+        async function testEncryptionSystem() {
+            console.log('=== Testing Encryption System ===');
+            
+            const testPassword = 'testPassword123';
+            const testData = {
+                quizName: 'Test Quiz',
+                regNumber: 'TEST123',
+                answers: ['A', 'B', 'C'],
+                submittedAt: new Date().toISOString()
+            };
+            
+            try {
+                // Test encryption
+                console.log('Testing encryption...');
+                const encrypted = await secureCrypto.encrypt(testData, testPassword);
+                console.log('✅ Encryption successful');
+                console.log('Encrypted (first 50 chars):', encrypted.substring(0, 50) + '...');
+                
+                // Test decryption with correct password
+                console.log('Testing decryption with correct password...');
+                const decrypted = await secureCrypto.decrypt(encrypted, testPassword);
+                console.log('✅ Decryption successful:', decrypted);
+                
+                // Test decryption with wrong password
+                console.log('Testing decryption with wrong password...');
+                try {
+                    await secureCrypto.decrypt(encrypted, 'wrongPassword');
+                    console.log('❌ Should have failed with wrong password!');
+                } catch (error) {
+                    console.log('✅ Correctly failed with wrong password:', error.message);
+                }
+                
+                alert('Encryption test completed! Check console for details.');
+                return true;
+            } catch (error) {
+                console.error('❌ Encryption test failed:', error);
+                alert('Encryption test failed: ' + error.message);
+                return false;
+            }
+        }
+
+        // Add test button to teacher.html (optional)
+        // <button onclick="testEncryptionSystem()" class="btn btn-secondary">Test Encryption</button>
         // Update the gradeResponses function too:
+        // Grade responses
         // Grade responses
         async function gradeResponses() {
             const password = document.getElementById('grade-password')?.value;
@@ -848,34 +934,77 @@
                         const text = await readFile(file);
                         const data = JSON.parse(text);
                         
-                        if (data.type === 'RESPONSE_FILE_V3' && data.encrypted) {
-                            // DECRYPT with password (REAL DECRYPTION)
-                            const decrypted = await secureCrypto.decrypt(data.encrypted, password);
-                            responses.push(decrypted);
+                        console.log(`Processing ${file.name}:`, {
+                            type: data.type,
+                            version: data.version,
+                            hasEncrypted: !!data.encrypted
+                        });
+                        
+                        // Accept V3 and V4 response files
+                        if ((data.type === 'RESPONSE_FILE_V3' || data.type === 'RESPONSE_FILE_V4') && data.encrypted) {
+                            try {
+                                // Try decryption with the provided password
+                                const decrypted = await secureCrypto.decrypt(data.encrypted, password);
+                                console.log(`✅ Successfully decrypted ${file.name}`);
+                                responses.push({
+                                    ...decrypted,
+                                    fileName: file.name,
+                                    fileType: data.type,
+                                    fileVersion: data.version
+                                });
+                            } catch (decryptError) {
+                                console.error(`❌ Decryption failed for ${file.name}:`, decryptError.message);
+                                
+                                // Try alternative approach if it's V4
+                                if (data.type === 'RESPONSE_FILE_V4' && password === 'backup_decryption') {
+                                    // Try base64 decoding as fallback
+                                    try {
+                                        const decoded = atob(data.encrypted);
+                                        const decrypted = JSON.parse(decoded);
+                                        responses.push({
+                                            ...decrypted,
+                                            fileName: file.name,
+                                            decryptionMethod: 'base64_fallback'
+                                        });
+                                        console.log(`✅ Used base64 fallback for ${file.name}`);
+                                    } catch (fallbackError) {
+                                        failedFiles.push(file.name + ' (decryption failed with both methods)');
+                                    }
+                                } else {
+                                    failedFiles.push(file.name + ' (decryption failed: ' + decryptError.message + ')');
+                                }
+                            }
                         } else {
-                            failedFiles.push(file.name + ' (invalid format)');
+                            failedFiles.push(file.name + ' (invalid format: type=' + (data.type || 'none') + ')');
                         }
                     } catch (error) {
+                        console.error(`Error processing ${file.name}:`, error);
                         failedFiles.push(file.name + ' (' + error.message + ')');
                     }
                 }
                 
+                // Show results
                 if (responses.length === 0) {
                     showToast('No valid response files could be decrypted', 'error');
                     if (failedFiles.length > 0) {
-                        alert('Failed files:\n' + failedFiles.join('\n'));
+                        alert('Failed to decrypt files:\n\n' + failedFiles.join('\n'));
                     }
                     return;
                 }
                 
+                // Display successful responses
                 displayResponses(responses);
                 
+                // Show warning for failed files
                 if (failedFiles.length > 0) {
-                    showToast(`Decrypted ${responses.length} files, failed ${failedFiles.length}`, 'warning');
+                    showToast(`Successfully processed ${responses.length} file(s), failed ${failedFiles.length}`, 'warning');
+                    console.log('Failed files:', failedFiles);
+                } else {
+                    showToast(`Successfully processed ${responses.length} file(s)`, 'success');
                 }
                 
             } catch (error) {
-                console.error('Error grading:', error);
+                console.error('Error in gradeResponses:', error);
                 showToast('Error: ' + error.message, 'error');
             }
         }
@@ -901,15 +1030,21 @@
             let html = `<h3>Responses (${responses.length} students)</h3>`;
             
             responses.forEach((resp, i) => {
+                // Handle both V3 and V4 formats
+                const regNumber = resp.regNumber || 'Anonymous';
+                const quizName = resp.quizName || 'Unknown Quiz';
+                const submittedAt = resp.submittedAt ? new Date(resp.submittedAt).toLocaleString() : 'Unknown';
+                const score = resp.score || calculateScore(resp) || 'N/A';
+                
                 html += `
                     <div class="draft-item">
                         <div>
-                            <strong>Student: ${resp.regNumber || 'Anonymous'}</strong><br>
-                            <small>Quiz: ${resp.quizName}</small><br>
-                            <small>Submitted: ${new Date(resp.submittedAt).toLocaleString()}</small>
+                            <strong>Student: ${regNumber}</strong><br>
+                            <small>Quiz: ${quizName}</small><br>
+                            <small>Submitted: ${submittedAt}</small>
                         </div>
                         <div>
-                            <small>Score: ${resp.score || 'N/A'}</small>
+                            <small>Score: ${score}</small>
                         </div>
                     </div>
                 `;
@@ -923,33 +1058,77 @@
             generateCSVPreview(responses);
         }
 
+        // Calculate score if not provided
+        function calculateScore(response) {
+            if (!response.answers || !response.questions) return null;
+            
+            // Basic scoring logic - you should customize this based on your quiz format
+            let score = 0;
+            let totalPossible = 0;
+            
+            if (response.shuffledQuestions && response.shuffledIndices) {
+                // Handle V4 format with shuffled questions
+                for (let i = 0; i < response.shuffledQuestions.length; i++) {
+                    const question = response.shuffledQuestions[i];
+                    const answer = response.answers[i];
+                    
+                    if (question.points) {
+                        totalPossible += question.points;
+                        // Add simple scoring logic here
+                        if (answer && answer.trim() !== '') {
+                            score += question.points; // Give full points for any answer (customize this)
+                        }
+                    }
+                }
+            }
+            
+            return totalPossible > 0 ? `${score}/${totalPossible}` : null;
+        }
+
         // Generate CSV preview
         function generateCSVPreview(responses) {
             if (responses.length === 0) return;
             
-            // Get all questions from first response (assuming same quiz)
+            // Get the first response to determine format
             const firstResp = responses[0];
-            const questions = firstResp.questions || [];
             
             let tableHTML = '<table><tr><th>Reg Number</th>';
             
+            // Determine number of questions
+            let questionCount = 0;
+            if (firstResp.questions && firstResp.questions.length) {
+                questionCount = firstResp.questions.length;
+            } else if (firstResp.shuffledQuestions && firstResp.shuffledQuestions.length) {
+                questionCount = firstResp.shuffledQuestions.length;
+            }
+            
             // Question headers
-            questions.forEach((q, i) => {
+            for (let i = 0; i < questionCount; i++) {
                 tableHTML += `<th>Q${i + 1}</th>`;
-            });
-            tableHTML += '<th>Score</th><th>Submitted</th></tr>';
+            }
+            
+            tableHTML += '<th>Score</th><th>Submitted</th><th>Tab Switches</th><th>Copy Attempts</th></tr>';
             
             // Data rows
             responses.forEach(resp => {
-                tableHTML += `<tr><td>${resp.regNumber || ''}</td>`;
+                const regNumber = resp.regNumber || '';
+                const score = resp.score || calculateScore(resp) || '';
+                const submitted = resp.submittedAt ? new Date(resp.submittedAt).toLocaleDateString() : '';
+                const tabSwitches = resp.activityLogs?.summary?.tabSwitches || 0;
+                const copyAttempts = resp.activityLogs?.summary?.copyAttempts || 0;
                 
-                questions.forEach((q, i) => {
+                tableHTML += `<tr><td>${regNumber}</td>`;
+                
+                // Answers
+                for (let i = 0; i < questionCount; i++) {
                     const answer = resp.answers && resp.answers[i] ? resp.answers[i] : '';
                     tableHTML += `<td>${answer}</td>`;
-                });
+                }
                 
-                tableHTML += `<td>${resp.score || ''}</td>`;
-                tableHTML += `<td>${new Date(resp.submittedAt).toLocaleDateString()}</td></tr>`;
+                tableHTML += `<td>${score}</td>`;
+                tableHTML += `<td>${submitted}</td>`;
+                tableHTML += `<td>${tabSwitches}</td>`;
+                tableHTML += `<td>${copyAttempts}</td></tr>`;
             });
             
             tableHTML += '</table>';
@@ -965,26 +1144,39 @@
             
             const data = window.responsesData;
             const firstResp = data[0];
-            const questions = firstResp.questions || [];
+            
+            // Determine number of questions
+            let questionCount = 0;
+            if (firstResp.questions && firstResp.questions.length) {
+                questionCount = firstResp.questions.length;
+            } else if (firstResp.shuffledQuestions && firstResp.shuffledQuestions.length) {
+                questionCount = firstResp.shuffledQuestions.length;
+            }
             
             // Create CSV header
             let csv = 'Registration Number,';
-            questions.forEach((q, i) => {
+            for (let i = 0; i < questionCount; i++) {
                 csv += `Q${i + 1},`;
-            });
-            csv += 'Score,Submitted Date\n';
+            }
+            csv += 'Score,Submitted Date,Tab Switches,Copy Attempts\n';
             
             // Add data rows
             data.forEach(resp => {
-                csv += `"${resp.regNumber || ''}",`;
+                const regNumber = resp.regNumber || '';
+                const score = resp.score || calculateScore(resp) || '';
+                const submitted = resp.submittedAt ? new Date(resp.submittedAt).toLocaleDateString() : '';
+                const tabSwitches = resp.activityLogs?.summary?.tabSwitches || 0;
+                const copyAttempts = resp.activityLogs?.summary?.copyAttempts || 0;
                 
-                questions.forEach((q, i) => {
+                csv += `"${regNumber}",`;
+                
+                // Answers
+                for (let i = 0; i < questionCount; i++) {
                     const answer = resp.answers && resp.answers[i] ? resp.answers[i] : '';
                     csv += `"${answer}",`;
-                });
+                }
                 
-                csv += `"${resp.score || ''}",`;
-                csv += `"${new Date(resp.submittedAt).toLocaleDateString()}"\n`;
+                csv += `"${score}","${submitted}","${tabSwitches}","${copyAttempts}"\n`;
             });
             
             // Download
@@ -1017,6 +1209,216 @@
             });
         }
 
+        // ==================== SECURE CRYPTO LIBRARY ====================
+        // This library provides AES-256-GCM encryption using Web Crypto API
+        
+        const secureCrypto = {
+            // Encrypt data with password
+            async encrypt(data, password) {
+                try {
+                    // Convert data to JSON string
+                    const jsonString = JSON.stringify(data);
+                    
+                    // Generate a random salt
+                    const salt = crypto.getRandomValues(new Uint8Array(16));
+                    
+                    // Generate a random IV (Initialization Vector)
+                    const iv = crypto.getRandomValues(new Uint8Array(12));
+                    
+                    // Derive key from password using PBKDF2
+                    const keyMaterial = await this.getKeyMaterial(password);
+                    const key = await crypto.subtle.deriveKey(
+                        {
+                            name: 'PBKDF2',
+                            salt: salt,
+                            iterations: 100000,
+                            hash: 'SHA-256'
+                        },
+                        keyMaterial,
+                        { name: 'AES-GCM', length: 256 },
+                        false,
+                        ['encrypt']
+                    );
+                    
+                    // Encrypt the data
+                    const encoder = new TextEncoder();
+                    const encodedData = encoder.encode(jsonString);
+                    
+                    const encryptedData = await crypto.subtle.encrypt(
+                        {
+                            name: 'AES-GCM',
+                            iv: iv
+                        },
+                        key,
+                        encodedData
+                    );
+                    
+                    // Combine salt + iv + encrypted data
+                    const encryptedArray = new Uint8Array(encryptedData);
+                    const combined = new Uint8Array(salt.length + iv.length + encryptedArray.length);
+                    combined.set(salt, 0);
+                    combined.set(iv, salt.length);
+                    combined.set(encryptedArray, salt.length + iv.length);
+                    
+                    // Convert to base64
+                    return this.arrayBufferToBase64(combined);
+                    
+                } catch (error) {
+                    console.error('Encryption error:', error);
+                    throw new Error('Encryption failed: ' + error.message);
+                }
+            },
+            
+            // Decrypt data with password
+            async decrypt(encryptedBase64, password) {
+                try {
+                    // Convert from base64
+                    const combined = this.base64ToArrayBuffer(encryptedBase64);
+                    
+                    // Extract salt, iv, and encrypted data
+                    const salt = combined.slice(0, 16);
+                    const iv = combined.slice(16, 28);
+                    const encryptedData = combined.slice(28);
+                    
+                    // Derive key from password using PBKDF2
+                    const keyMaterial = await this.getKeyMaterial(password);
+                    const key = await crypto.subtle.deriveKey(
+                        {
+                            name: 'PBKDF2',
+                            salt: salt,
+                            iterations: 100000,
+                            hash: 'SHA-256'
+                        },
+                        keyMaterial,
+                        { name: 'AES-GCM', length: 256 },
+                        false,
+                        ['decrypt']
+                    );
+                    
+                    // Decrypt the data
+                    const decryptedData = await crypto.subtle.decrypt(
+                        {
+                            name: 'AES-GCM',
+                            iv: iv
+                        },
+                        key,
+                        encryptedData
+                    );
+                    
+                    // Convert back to string and parse JSON
+                    const decoder = new TextDecoder();
+                    const jsonString = decoder.decode(decryptedData);
+                    return JSON.parse(jsonString);
+                    
+                } catch (error) {
+                    console.error('Decryption error:', error);
+                    if (error.message.includes('tag')) {
+                        throw new Error('Incorrect password or corrupted data');
+                    }
+                    throw new Error('Decryption failed: ' + error.message);
+                }
+            },
+            
+            // Get key material from password
+            async getKeyMaterial(password) {
+                const encoder = new TextEncoder();
+                return crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(password),
+                    { name: 'PBKDF2' },
+                    false,
+                    ['deriveKey']
+                );
+            },
+            
+            // Convert ArrayBuffer to Base64
+            arrayBufferToBase64(buffer) {
+                let binary = '';
+                const bytes = new Uint8Array(buffer);
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return btoa(binary);
+            },
+            
+            // Convert Base64 to ArrayBuffer
+            base64ToArrayBuffer(base64) {
+                const binary = atob(base64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                return bytes;
+            },
+            
+            // Check password strength
+            checkPasswordStrength(password) {
+                const strength = {
+                    strength: 'weak',
+                    suggestions: []
+                };
+                
+                if (password.length < 8) {
+                    strength.suggestions.push('• Use at least 8 characters');
+                }
+                if (!/[a-z]/.test(password)) {
+                    strength.suggestions.push('• Include lowercase letters');
+                }
+                if (!/[A-Z]/.test(password)) {
+                    strength.suggestions.push('• Include uppercase letters');
+                }
+                if (!/[0-9]/.test(password)) {
+                    strength.suggestions.push('• Include numbers');
+                }
+                if (!/[^a-zA-Z0-9]/.test(password)) {
+                    strength.suggestions.push('• Include special characters');
+                }
+                
+                if (password.length >= 12 && /[a-z]/.test(password) && /[A-Z]/.test(password) && 
+                    /[0-9]/.test(password) && /[^a-zA-Z0-9]/.test(password)) {
+                    strength.strength = 'strong';
+                    strength.suggestions = [];
+                } else if (password.length >= 8 && strength.suggestions.length <= 2) {
+                    strength.strength = 'medium';
+                }
+                
+                return strength;
+            }
+        };
+        
+        // Test the encryption
+        async function testEncryption() {
+            console.log('Testing secureCrypto...');
+            
+            try {
+                const testData = { message: 'Hello World', number: 42 };
+                const password = 'testPassword123';
+                
+                const encrypted = await secureCrypto.encrypt(testData, password);
+                console.log('✅ Encryption successful');
+                console.log('Encrypted (first 50 chars):', encrypted.substring(0, 50) + '...');
+                
+                const decrypted = await secureCrypto.decrypt(encrypted, password);
+                console.log('✅ Decryption successful');
+                console.log('Decrypted:', decrypted);
+                
+                if (JSON.stringify(testData) === JSON.stringify(decrypted)) {
+                    console.log('✅ Encryption test PASSED - Data integrity verified');
+                    return true;
+                } else {
+                    console.error('❌ Encryption test FAILED - Data mismatch');
+                    return false;
+                }
+            } catch (error) {
+                console.error('❌ Test error:', error);
+                return false;
+            }
+        }
+        
+        // Run test on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            testEncryption();
+        });
         // Toast notification
         function showToast(message, type = 'info') {
             const toast = document.getElementById('toast');
